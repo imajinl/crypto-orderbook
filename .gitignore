@@ -1,6 +1,7 @@
 # Logs
 *.log
 scheduler.log
+logs/
 
 # Python
 __pycache__/

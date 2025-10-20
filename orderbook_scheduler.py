@@ -43,7 +43,7 @@ class OrderbookScheduler:
     
     def run_symbol(self, symbol):
         """Run the Go application for a specific symbol"""
-        log_file = f"/tmp/orderbook_{symbol.lower()}.log"
+        log_file = f"logs/orderbook_{symbol.lower()}.log"
         
         logging.info(f"Starting data collection for {symbol}")
         
