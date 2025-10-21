@@ -9,17 +9,17 @@ import (
 type ExchangeName string
 
 const (
-	Binancef    ExchangeName = "binancef"
-	Binance     ExchangeName = "binance"
-	Bybitf      ExchangeName = "bybitf"
-	Bybit       ExchangeName = "bybit"
-	Kraken      ExchangeName = "kraken"
-	Hyperliquid ExchangeName = "hyperliquid"
-	OKX         ExchangeName = "okx"
-	Coinbase    ExchangeName = "coinbase"
-	Asterdexf   ExchangeName = "asterdexf"
-	BingX       ExchangeName = "bingx"
-	BingXf      ExchangeName = "bingxf"
+	Binancef     ExchangeName = "binancef"
+	Binance      ExchangeName = "binance"
+	Bybitf       ExchangeName = "bybitf"
+	Bybit        ExchangeName = "bybit"
+	Kraken       ExchangeName = "kraken"
+	Hyperliquidf ExchangeName = "hyperliquidf"
+	OKX          ExchangeName = "okx"
+	Coinbase     ExchangeName = "coinbase"
+	Asterdexf    ExchangeName = "asterdexf"
+	BingX        ExchangeName = "bingx"
+	BingXf       ExchangeName = "bingxf"
 )
 
 // Exchange defines the interface that all exchange adapters must implement

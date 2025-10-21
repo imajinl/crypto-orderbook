@@ -18,7 +18,7 @@ import { Button } from './components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './components/ui/tooltip';
 import { ToggleGroup, ToggleGroupItem } from './components/ui/toggle-group';
 import { Moon, Sun, Layers } from 'lucide-react';
-import { TICK_LEVELS, CHART_CONFIG } from './constants';
+import { TICK_LEVELS, CHART_CONFIG, POPULAR_SYMBOLS } from './constants';
 import { filterExchangesByMarket, sortExchangesByGroup } from './utils/calculations';
 import type { MarketFilter } from './types';
 import bingxLogo from '@/assets/bingx.png';
@@ -27,7 +27,7 @@ function App() {
   const { isDark, toggleTheme } = useTheme();
   const [marketFilter, setMarketFilter] = useLocalStorage<MarketFilter>('marketFilter', 'all');
   const [showAggregate, setShowAggregate] = useState(false);
-  const { orderbooks, stats, isConnected, setTickLevel } = useWebSocket('ws://localhost:8086/ws');
+  const { orderbooks, stats, isConnected, currentSymbol, isSwitchingSymbol, setTickLevel, setSymbol } = useWebSocket('ws://localhost:8086/ws');
   const { chartData05Pct, chartData2Pct, chartData10Pct, chartDataTotal } = useChartData(stats, marketFilter);
 
   // Filter and sort orderbooks based on market filter
@@ -73,13 +73,25 @@ function App() {
         <div className="mb-6 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">Crypto Orderbook</h1>
+            <Select value={currentSymbol} onValueChange={setSymbol} disabled={isSwitchingSymbol}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {POPULAR_SYMBOLS.map((symbol) => (
+                  <SelectItem key={symbol.value} value={symbol.value}>
+                    {symbol.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="hidden sm:inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-2 py-1">
               <span
-                className={`size-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-destructive'
+                className={`size-2 rounded-full ${isConnected && !isSwitchingSymbol ? 'bg-green-500' : isSwitchingSymbol ? 'bg-yellow-500' : 'bg-destructive'
                   }`}
               />
               <span className="text-xs text-muted-foreground">
-                {isConnected ? 'Connected' : 'Disconnected'}
+                {isSwitchingSymbol ? 'Switching...' : isConnected ? 'Connected' : 'Disconnected'}
               </span>
             </div>
           </div>

@@ -9,6 +9,8 @@ export function useWebSocket(url: string) {
   const [orderbooks, setOrderbooks] = useState<OrderbookData>({});
   const [stats, setStats] = useState<StatsData>({});
   const [isConnected, setIsConnected] = useState(false);
+  const [currentSymbol, setCurrentSymbol] = useState('BTCUSDT');
+  const [isSwitchingSymbol, setIsSwitchingSymbol] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | undefined>(undefined);
 
@@ -87,5 +89,19 @@ export function useWebSocket(url: string) {
     }
   };
 
-  return { orderbooks, stats, isConnected, setTickLevel };
+  const setSymbol = (symbol: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      setIsSwitchingSymbol(true);
+      setOrderbooks({});
+      setStats({});
+      setCurrentSymbol(symbol);
+      wsRef.current.send(JSON.stringify({ type: 'change_symbol', symbol }));
+
+      setTimeout(() => {
+        setIsSwitchingSymbol(false);
+      }, 3000);
+    }
+  };
+
+  return { orderbooks, stats, isConnected, currentSymbol, isSwitchingSymbol, setTickLevel, setSymbol };
 }
