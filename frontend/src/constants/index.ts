@@ -21,3 +21,16 @@ export const CHART_CONFIG: ChartConfig = {
 };
 
 export const ORDERBOOK_ROWS_PER_SIDE = 10;
+
+export const POPULAR_SYMBOLS = [
+  { value: 'BTCUSDT', label: 'BTC/USDT' },
+  { value: 'ETHUSDT', label: 'ETH/USDT' },
+  { value: 'SOLUSDT', label: 'SOL/USDT' },
+  { value: 'BNBUSDT', label: 'BNB/USDT' },
+  { value: 'XRPUSDT', label: 'XRP/USDT' },
+  { value: 'ADAUSDT', label: 'ADA/USDT' },
+  { value: 'DOGEUSDT', label: 'DOGE/USDT' },
+  { value: 'AVAXUSDT', label: 'AVAX/USDT' },
+  { value: 'DOTUSDT', label: 'DOT/USDT' },
+  { value: 'MATICUSDT', label: 'MATIC/USDT' },
+] as const;

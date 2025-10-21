@@ -9,6 +9,7 @@ import (
 	"orderbook/internal/exchange/bingx"
 	"orderbook/internal/exchange/bybit"
 	"orderbook/internal/exchange/coinbase"
+	"orderbook/internal/exchange/hyperliquid"
 	"orderbook/internal/exchange/kraken"
 	"orderbook/internal/exchange/okx"
 )
@@ -72,8 +73,10 @@ func NewExchange(config ExchangeConfig) (exchange.Exchange, error) {
 			Symbol: config.Symbol,
 		}), nil
 
-	case exchange.Hyperliquid:
-		return nil, fmt.Errorf("hyperliquid exchange not yet implemented")
+	case exchange.Hyperliquidf:
+		return hyperliquid.NewFuturesExchange(hyperliquid.Config{
+			Symbol: config.Symbol,
+		}), nil
 
 	default:
 		return nil, fmt.Errorf("unknown exchange: %s", config.Name)
@@ -83,7 +86,7 @@ func NewExchange(config ExchangeConfig) (exchange.Exchange, error) {
 // ValidateExchangeName checks if the exchange name is supported
 func ValidateExchangeName(name string) bool {
 	switch exchange.ExchangeName(name) {
-	case exchange.Binancef, exchange.Binance, exchange.Bybitf, exchange.Bybit, exchange.Kraken, exchange.Hyperliquid, exchange.OKX, exchange.Coinbase, exchange.Asterdexf, exchange.BingX, exchange.BingXf:
+	case exchange.Binancef, exchange.Binance, exchange.Bybitf, exchange.Bybit, exchange.Kraken, exchange.Hyperliquidf, exchange.OKX, exchange.Coinbase, exchange.Asterdexf, exchange.BingX, exchange.BingXf:
 		return true
 	default:
 		return false
@@ -92,10 +95,10 @@ func ValidateExchangeName(name string) bool {
 
 // GetSupportedExchanges returns a list of all supported exchanges
 func GetSupportedExchanges() []exchange.ExchangeName {
-	return []exchange.ExchangeName{exchange.Binancef, exchange.Binance, exchange.Bybitf, exchange.Bybit, exchange.Kraken, exchange.Hyperliquid, exchange.OKX, exchange.Coinbase, exchange.Asterdexf, exchange.BingX, exchange.BingXf}
+	return []exchange.ExchangeName{exchange.Binancef, exchange.Binance, exchange.Bybitf, exchange.Bybit, exchange.Kraken, exchange.Hyperliquidf, exchange.OKX, exchange.Coinbase, exchange.Asterdexf, exchange.BingX, exchange.BingXf}
 }
 
 // GetImplementedExchanges returns a list of currently implemented exchanges
 func GetImplementedExchanges() []exchange.ExchangeName {
-	return []exchange.ExchangeName{exchange.Binancef, exchange.Binance, exchange.Bybitf, exchange.Bybit, exchange.Kraken, exchange.OKX, exchange.Coinbase, exchange.Asterdexf, exchange.BingX, exchange.BingXf}
+	return []exchange.ExchangeName{exchange.Binancef, exchange.Binance, exchange.Bybitf, exchange.Bybit, exchange.Kraken, exchange.Hyperliquidf, exchange.OKX, exchange.Coinbase, exchange.Asterdexf, exchange.BingX, exchange.BingXf}
 }

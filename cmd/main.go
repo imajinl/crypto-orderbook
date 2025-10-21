@@ -25,67 +25,14 @@ func main() {
 	var logInterval = flag.Duration("log-interval", 10*time.Second, "Interval for logging orderbook stats")
 	flag.Parse()
 
-	// Load configuration with multiple exchanges
-	cfg := config.NewMultiExchange([]config.ExchangeConfig{
-		{
-			Name:   exchange.Binancef,
-			Symbol: *symbol,
-		},
-		{
-			Name:   exchange.Binance,
-			Symbol: *symbol,
-		},
-		{
-			Name:   exchange.Bybitf,
-			Symbol: *symbol,
-		},
-		{
-			Name:   exchange.Bybit,
-			Symbol: *symbol,
-		},
-		{
-			Name:   exchange.Kraken,
-			Symbol: *symbol,
-		},
-		{
-			Name:   exchange.OKX,
-			Symbol: *symbol,
-		},
-		{
-			Name:   exchange.Coinbase,
-			Symbol: *symbol,
-		},
-		{
-			Name:   exchange.Asterdexf,
-			Symbol: *symbol,
-		},
-		{
-			Name:   exchange.BingX,
-			Symbol: *symbol,
-		},
-		/*{
-			Name:   exchange.BingXf,
-			Symbol: *symbol,
-		},*/
-	})
-
 	// Set up signal handling
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
 	log.Printf("Starting multi-exchange orderbook monitor for %s", *symbol)
-	log.Printf("Exchanges: %v", getExchangeNames(cfg.Exchanges))
 	log.Printf("Log interval: %v", *logInterval)
 
-	runMultiExchange(cfg, *logInterval, interrupt)
-}
-
-func getExchangeNames(exchanges []config.ExchangeConfig) []string {
-	names := make([]string, len(exchanges))
-	for i, ex := range exchanges {
-		names[i] = string(ex.Name)
-	}
-	return names
+	runMultiExchange(*symbol, *logInterval, interrupt)
 }
 
 type orderbookWithName struct {
@@ -102,25 +49,86 @@ const (
 	colorBold    = "\033[1m"
 )
 
-func runMultiExchange(cfg config.Config, logInterval time.Duration, interrupt chan os.Signal) {
-	if len(cfg.Exchanges) == 0 {
-		log.Fatal("No exchanges configured")
+func getExchangeNames() []exchange.ExchangeName {
+	return []exchange.ExchangeName{
+		exchange.Binancef,
+		exchange.Binance,
+		exchange.Bybitf,
+		exchange.Bybit,
+		exchange.Kraken,
+		exchange.OKX,
+		exchange.Coinbase,
+		exchange.Asterdexf,
+		exchange.BingX,
+		exchange.Hyperliquidf,
 	}
+}
 
+func runMultiExchange(initialSymbol string, logInterval time.Duration, interrupt chan os.Signal) {
 	ctx := context.Background()
-	var wg sync.WaitGroup
-	orderbooks := make([]*orderbookWithName, 0, len(cfg.Exchanges))
 	orderbooksMap := make(map[string]*orderbook.OrderBook)
 	var obMutex sync.Mutex
-	done := make(chan struct{})
+	symbolChange := make(chan string, 1)
+	currentSymbol := initialSymbol
 
 	// Start WebSocket server
-	wsServer := websocket.NewServer(orderbooksMap, "8086")
+	wsServer := websocket.NewServer(orderbooksMap, "8086", symbolChange)
 	go func() {
 		if err := wsServer.Start(); err != nil {
 			log.Fatalf("WebSocket server error: %v", err)
 		}
 	}()
+
+	// Main loop to handle symbol changes
+	for {
+		log.Printf("Starting exchanges for symbol: %s", currentSymbol)
+
+		// Start all exchanges with current symbol
+		done := make(chan struct{})
+		exchangesDone := make(chan struct{})
+
+		go func() {
+			startExchangesForSymbol(ctx, currentSymbol, orderbooksMap, &obMutex, logInterval, done, interrupt)
+			close(exchangesDone)
+		}()
+
+		// Wait for either symbol change or interrupt
+		select {
+		case newSymbol := <-symbolChange:
+			log.Printf("Symbol change requested: %s -> %s", currentSymbol, newSymbol)
+			currentSymbol = newSymbol
+
+			// Signal exchanges to stop
+			close(done)
+
+			// Wait for all exchanges to cleanly shut down
+			<-exchangesDone
+
+			// Clear orderbooks map
+			obMutex.Lock()
+			for k := range orderbooksMap {
+				delete(orderbooksMap, k)
+			}
+			obMutex.Unlock()
+
+			log.Printf("All exchanges stopped. Restarting with symbol: %s", currentSymbol)
+			time.Sleep(500 * time.Millisecond)
+
+		case <-interrupt:
+			log.Println("Interrupt received, shutting down...")
+			close(done)
+			<-exchangesDone
+			log.Println("All exchanges closed. Goodbye!")
+			return
+		}
+	}
+}
+
+func startExchangesForSymbol(ctx context.Context, symbol string, orderbooksMap map[string]*orderbook.OrderBook, obMutex *sync.Mutex, logInterval time.Duration, done chan struct{}, interrupt chan os.Signal) {
+	cfg := config.NewMultiExchange(buildExchangeConfigs(symbol))
+
+	var wg sync.WaitGroup
+	orderbooks := make([]*orderbookWithName, 0, len(cfg.Exchanges))
 
 	// Create an orderbook for each exchange
 	for _, exConfig := range cfg.Exchanges {
@@ -213,6 +221,11 @@ func runMultiExchange(cfg config.Config, logInterval time.Duration, interrupt ch
 			case <-interrupt:
 				log.Printf("[%s] Shutting down...", exCfg.Name)
 			}
+
+			// Remove from map on shutdown
+			obMutex.Lock()
+			delete(orderbooksMap, string(exCfg.Name))
+			obMutex.Unlock()
 		}(exConfig)
 	}
 
@@ -235,12 +248,19 @@ func runMultiExchange(cfg config.Config, logInterval time.Duration, interrupt ch
 		}
 	}()
 
-	// Wait for interrupt
-	<-interrupt
-	close(done)
-
 	wg.Wait()
-	log.Println("All exchanges closed. Goodbye!")
+}
+
+func buildExchangeConfigs(symbol string) []config.ExchangeConfig {
+	names := getExchangeNames()
+	configs := make([]config.ExchangeConfig, len(names))
+	for i, name := range names {
+		configs[i] = config.ExchangeConfig{
+			Name:   name,
+			Symbol: symbol,
+		}
+	}
+	return configs
 }
 
 func printCombinedStats(orderbooks []*orderbookWithName) {

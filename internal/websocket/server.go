@@ -25,8 +25,9 @@ const (
 
 // ClientMessage represents messages sent from client to server
 type ClientMessage struct {
-	Type string  `json:"type"`
-	Tick float64 `json:"tick,omitempty"`
+	Type   string  `json:"type"`
+	Tick   float64 `json:"tick,omitempty"`
+	Symbol string  `json:"symbol,omitempty"`
 }
 
 type OrderbookMessage struct {
@@ -66,23 +67,25 @@ type PriceLevel struct {
 }
 
 type Server struct {
-	orderbooks map[string]*orderbook.OrderBook
-	port       string
-	upgrader   websocket.Upgrader
-	clients    map[*websocket.Conn]bool
-	clientsMux sync.RWMutex
-	broadcast  chan interface{}
-	aggregator *aggregation.Aggregator
-	tickMux    sync.RWMutex
+	orderbooks   map[string]*orderbook.OrderBook
+	port         string
+	upgrader     websocket.Upgrader
+	clients      map[*websocket.Conn]bool
+	clientsMux   sync.RWMutex
+	broadcast    chan interface{}
+	aggregator   *aggregation.Aggregator
+	tickMux      sync.RWMutex
+	symbolChange chan string
 }
 
-func NewServer(orderbooks map[string]*orderbook.OrderBook, port string) *Server {
+func NewServer(orderbooks map[string]*orderbook.OrderBook, port string, symbolChange chan string) *Server {
 	return &Server{
-		orderbooks: orderbooks,
-		port:       port,
-		clients:    make(map[*websocket.Conn]bool),
-		broadcast:  make(chan interface{}, 100),
-		aggregator: aggregation.New(types.Tick1), // Default to 1.0 tick
+		orderbooks:   orderbooks,
+		port:         port,
+		clients:      make(map[*websocket.Conn]bool),
+		broadcast:    make(chan interface{}, 100),
+		aggregator:   aggregation.New(types.Tick1), // Default to 1.0 tick
+		symbolChange: symbolChange,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true
@@ -142,6 +145,11 @@ func (s *Server) handleClientMessage(msg ClientMessage) {
 	switch msg.Type {
 	case "set_tick":
 		s.setTickLevel(msg.Tick)
+	case "change_symbol":
+		if msg.Symbol != "" {
+			log.Printf("Symbol change request: %s", msg.Symbol)
+			s.symbolChange <- msg.Symbol
+		}
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
