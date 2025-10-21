@@ -10,11 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"orderbook/internal/collector"
 	"orderbook/internal/config"
+	"orderbook/internal/database"
 	"orderbook/internal/exchange"
 	"orderbook/internal/factory"
 	"orderbook/internal/orderbook"
-	"orderbook/internal/websocket"
 
 	"github.com/shopspring/decimal"
 )
@@ -23,6 +24,8 @@ func main() {
 	// Parse command line flags
 	var symbol = flag.String("symbol", "BTCUSDT", "Trading symbol to monitor")
 	var logInterval = flag.Duration("log-interval", 10*time.Second, "Interval for logging orderbook stats")
+	var dbEnabled = flag.Bool("db-enabled", true, "Enable database storage")
+	var dbInterval = flag.Duration("db-interval", 20*time.Second, "Interval for database storage")
 	flag.Parse()
 
 	// Set up signal handling
@@ -31,8 +34,11 @@ func main() {
 
 	log.Printf("Starting multi-exchange orderbook monitor for %s", *symbol)
 	log.Printf("Log interval: %v", *logInterval)
+	if *dbEnabled {
+		log.Printf("Database storage enabled with interval: %v", *dbInterval)
+	}
 
-	runMultiExchange(*symbol, *logInterval, interrupt)
+	runMultiExchange(*symbol, *logInterval, *dbEnabled, *dbInterval, interrupt)
 }
 
 type orderbookWithName struct {
@@ -64,20 +70,34 @@ func getExchangeNames() []exchange.ExchangeName {
 	}
 }
 
-func runMultiExchange(initialSymbol string, logInterval time.Duration, interrupt chan os.Signal) {
+func runMultiExchange(initialSymbol string, logInterval time.Duration, dbEnabled bool, dbInterval time.Duration, interrupt chan os.Signal) {
 	ctx := context.Background()
 	orderbooksMap := make(map[string]*orderbook.OrderBook)
 	var obMutex sync.Mutex
-	symbolChange := make(chan string, 1)
 	currentSymbol := initialSymbol
 
-	// Start WebSocket server
-	wsServer := websocket.NewServer(orderbooksMap, "8086", symbolChange)
-	go func() {
-		if err := wsServer.Start(); err != nil {
-			log.Fatalf("WebSocket server error: %v", err)
+	// Initialize database client and collector if enabled
+	var dbClient database.SupabaseAPIClient
+	var dataCollector *collector.Collector
+	if dbEnabled {
+		// Get Supabase configuration from environment
+		baseURL, apiKey := getSupabaseConfig()
+
+		// Create API client
+		dbClient = *database.NewSupabaseAPIClient(baseURL, apiKey)
+
+		// Test API connection
+		if err := dbClient.TestConnection(); err != nil {
+			log.Fatalf("Supabase API connection test failed: %v", err)
 		}
-	}()
+		log.Println("Supabase API connection established successfully")
+
+		// Create data collector
+		dataCollector = collector.NewCollector(&dbClient, currentSymbol, dbInterval)
+
+		// Start data collection in background
+		go dataCollector.Start(ctx)
+	}
 
 	// Main loop to handle symbol changes
 	for {
@@ -88,43 +108,21 @@ func runMultiExchange(initialSymbol string, logInterval time.Duration, interrupt
 		exchangesDone := make(chan struct{})
 
 		go func() {
-			startExchangesForSymbol(ctx, currentSymbol, orderbooksMap, &obMutex, logInterval, done, interrupt)
+			startExchangesForSymbol(ctx, currentSymbol, orderbooksMap, &obMutex, logInterval, dataCollector, done, interrupt)
 			close(exchangesDone)
 		}()
 
-		// Wait for either symbol change or interrupt
-		select {
-		case newSymbol := <-symbolChange:
-			log.Printf("Symbol change requested: %s -> %s", currentSymbol, newSymbol)
-			currentSymbol = newSymbol
-
-			// Signal exchanges to stop
-			close(done)
-
-			// Wait for all exchanges to cleanly shut down
-			<-exchangesDone
-
-			// Clear orderbooks map
-			obMutex.Lock()
-			for k := range orderbooksMap {
-				delete(orderbooksMap, k)
-			}
-			obMutex.Unlock()
-
-			log.Printf("All exchanges stopped. Restarting with symbol: %s", currentSymbol)
-			time.Sleep(500 * time.Millisecond)
-
-		case <-interrupt:
-			log.Println("Interrupt received, shutting down...")
-			close(done)
-			<-exchangesDone
-			log.Println("All exchanges closed. Goodbye!")
-			return
-		}
+		// Wait for interrupt
+		<-interrupt
+		log.Println("Interrupt received, shutting down...")
+		close(done)
+		<-exchangesDone
+		log.Println("All exchanges closed. Goodbye!")
+		return
 	}
 }
 
-func startExchangesForSymbol(ctx context.Context, symbol string, orderbooksMap map[string]*orderbook.OrderBook, obMutex *sync.Mutex, logInterval time.Duration, done chan struct{}, interrupt chan os.Signal) {
+func startExchangesForSymbol(ctx context.Context, symbol string, orderbooksMap map[string]*orderbook.OrderBook, obMutex *sync.Mutex, logInterval time.Duration, dataCollector *collector.Collector, done chan struct{}, interrupt chan os.Signal) {
 	cfg := config.NewMultiExchange(buildExchangeConfigs(symbol))
 
 	var wg sync.WaitGroup
@@ -212,6 +210,11 @@ func startExchangesForSymbol(ctx context.Context, symbol string, orderbooksMap m
 			orderbooksMap[string(exCfg.Name)] = ob
 			obMutex.Unlock()
 
+			// Register orderbook with data collector if enabled
+			if dataCollector != nil {
+				dataCollector.RegisterOrderbook(string(exCfg.Name), ob)
+			}
+
 			// Wait for shutdown
 			select {
 			case <-updatesDone:
@@ -220,6 +223,11 @@ func startExchangesForSymbol(ctx context.Context, symbol string, orderbooksMap m
 				log.Printf("[%s] Shutting down...", exCfg.Name)
 			case <-interrupt:
 				log.Printf("[%s] Shutting down...", exCfg.Name)
+			}
+
+			// Unregister from data collector if enabled
+			if dataCollector != nil {
+				dataCollector.UnregisterOrderbook(string(exCfg.Name))
 			}
 
 			// Remove from map on shutdown
@@ -321,4 +329,22 @@ func getDeltaColor(delta decimal.Decimal) string {
 		return colorRed
 	}
 	return colorYellow
+}
+
+// getSupabaseConfig gets Supabase configuration from environment variables
+func getSupabaseConfig() (string, string) {
+	// Get Supabase URL and API key from environment
+	baseURL := os.Getenv("SUPABASE_URL")
+	apiKey := os.Getenv("SUPABASE_ANON_KEY")
+
+	// Set defaults if not provided
+	if baseURL == "" {
+		baseURL = "https://qlcmrsbvdmyflllavyzc.supabase.co"
+	}
+	if apiKey == "" {
+		log.Fatal("SUPABASE_ANON_KEY environment variable is required. Please set it with your Supabase anonymous key.")
+	}
+
+	log.Printf("Supabase API: %s", baseURL)
+	return baseURL, apiKey
 }
