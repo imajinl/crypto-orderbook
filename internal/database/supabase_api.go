@@ -29,22 +29,21 @@ func NewSupabaseAPIClient(baseURL, apiKey string) *SupabaseAPIClient {
 
 // OrderbookSnapshotAPI represents the API payload structure
 type OrderbookSnapshotAPI struct {
-	Exchange          string                 `json:"exchange"`
-	Symbol            string                 `json:"symbol"`
-	Timestamp         time.Time              `json:"timestamp"`
-	BestBid           *float64               `json:"best_bid"`
-	BestAsk           *float64               `json:"best_ask"`
-	MidPrice          *float64               `json:"mid_price"`
-	Spread            *float64               `json:"spread"`
-	BidLiquidity05Pct *float64               `json:"bid_liquidity_05_pct"`
-	AskLiquidity05Pct *float64               `json:"ask_liquidity_05_pct"`
-	BidLiquidity2Pct  *float64               `json:"bid_liquidity_2_pct"`
-	AskLiquidity2Pct  *float64               `json:"ask_liquidity_2_pct"`
-	BidLiquidity10Pct *float64               `json:"bid_liquidity_10_pct"`
-	AskLiquidity10Pct *float64               `json:"ask_liquidity_10_pct"`
-	TotalBidsQty      *float64               `json:"total_bids_qty"`
-	TotalAsksQty      *float64               `json:"total_asks_qty"`
-	OrderbookData     map[string]interface{} `json:"orderbook_data"`
+	Exchange          string    `json:"exchange"`
+	Symbol            string    `json:"symbol"`
+	Timestamp         time.Time `json:"timestamp"`
+	BestBid           *float64  `json:"best_bid"`
+	BestAsk           *float64  `json:"best_ask"`
+	MidPrice          *float64  `json:"mid_price"`
+	Spread            *float64  `json:"spread"`
+	BidLiquidity05Pct *float64  `json:"bid_liquidity_05_pct"`
+	AskLiquidity05Pct *float64  `json:"ask_liquidity_05_pct"`
+	BidLiquidity2Pct  *float64  `json:"bid_liquidity_2_pct"`
+	AskLiquidity2Pct  *float64  `json:"ask_liquidity_2_pct"`
+	BidLiquidity10Pct *float64  `json:"bid_liquidity_10_pct"`
+	AskLiquidity10Pct *float64  `json:"ask_liquidity_10_pct"`
+	TotalBidsQty      *float64  `json:"total_bids_qty"`
+	TotalAsksQty      *float64  `json:"total_asks_qty"`
 }
 
 // InsertOrderbookSnapshot inserts a single snapshot via API

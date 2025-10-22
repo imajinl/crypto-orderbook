@@ -150,36 +150,12 @@ func (c *Collector) createSnapshot(exchange string, stats types.Stats, ob *order
 	totalBids := stats.TotalBidsQty.InexactFloat64()
 	totalAsks := stats.TotalAsksQty.InexactFloat64()
 
-	// Create orderbook data JSON
-	orderbookData := map[string]interface{}{
-		"bids": c.convertPriceLevels(ob.GetBids()),
-		"asks": c.convertPriceLevels(ob.GetAsks()),
-		"stats": map[string]interface{}{
-			"events_processed":   stats.EventsProcessed,
-			"last_event_time":    stats.LastEventTime,
-			"connection_time":    stats.ConnectionTime,
-			"buffered_events":    stats.BufferedEvents,
-			"bid_levels":         stats.BidLevels,
-			"ask_levels":         stats.AskLevels,
-			"best_bid":           stats.BestBid.String(),
-			"best_ask":           stats.BestAsk.String(),
-			"spread":             stats.Spread.String(),
-			"bid_liquidity_05":   stats.BidLiquidity05Pct.String(),
-			"ask_liquidity_05":   stats.AskLiquidity05Pct.String(),
-			"bid_liquidity_2":    stats.BidLiquidity2Pct.String(),
-			"ask_liquidity_2":    stats.AskLiquidity2Pct.String(),
-			"bid_liquidity_10":   stats.BidLiquidity10Pct.String(),
-			"ask_liquidity_10":   stats.AskLiquidity10Pct.String(),
-			"delta_liquidity_05": stats.DeltaLiquidity05Pct.String(),
-			"delta_liquidity_2":  stats.DeltaLiquidity2Pct.String(),
-			"delta_liquidity_10": stats.DeltaLiquidity10Pct.String(),
-			"total_bids_qty":     stats.TotalBidsQty.String(),
-			"total_asks_qty":     stats.TotalAsksQty.String(),
-			"total_delta":        stats.TotalDelta.String(),
-		},
-	}
+	// Collect bid/ask data for logging (not uploaded to database)
+	bidLevels := c.convertPriceLevels(ob.GetBids())
+	askLevels := c.convertPriceLevels(ob.GetAsks())
 
-	// orderbookData is already in the correct format for API
+	// Log orderbook data for debugging/monitoring (optional)
+	log.Printf("[Collector] %s: %d bids, %d asks", exchange, len(bidLevels), len(askLevels))
 
 	return &database.OrderbookSnapshotAPI{
 		Exchange:          exchange,
@@ -197,7 +173,6 @@ func (c *Collector) createSnapshot(exchange string, stats types.Stats, ob *order
 		AskLiquidity10Pct: &askLiq10,
 		TotalBidsQty:      &totalBids,
 		TotalAsksQty:      &totalAsks,
-		OrderbookData:     orderbookData,
 	}
 }
 
