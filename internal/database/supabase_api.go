@@ -115,7 +115,7 @@ func (c *SupabaseAPIClient) InsertOrderbookSnapshotsBatch(snapshots []*Orderbook
 
 // TestConnection tests the API connection
 func (c *SupabaseAPIClient) TestConnection() error {
-	url := fmt.Sprintf("%s/rest/v1/orderbook_snapshots?select=count", c.baseURL)
+	url := fmt.Sprintf("%s/rest/v1/orderbook_snapshots?select=id&limit=1", c.baseURL)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
